@@ -2,6 +2,15 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using TaidouCommon.Model;
+
+public enum RaidType
+{
+    None,
+    Person,
+    Team
+}
+
 
 public class GameControl : MonoBehaviour {
     private static GameControl _instance;
@@ -11,11 +20,11 @@ public class GameControl : MonoBehaviour {
     }
 #region 持有的相关引用
     //UI管理类
-    public UIManagerBase mUIManager { get; private set; }
+    public UIManagerBase mUIManager { get; set; }
     //服务器列表类
-    public ServerList mServerlist { get; private set; }
+    public List<Server> serverList;
     //持有玩家信息类
-    public PlayerInfo playerInfo { get; private set; }
+    public PlayerInfo playerInfo { get;  set; }
     //持有可选角色类型
     public List<CharacterType> cList { get; private set; }
     //持有装备道具类
@@ -23,9 +32,23 @@ public class GameControl : MonoBehaviour {
     //持有任务信息类
     public List<Task> tasks;
     //持有Npc管理类
-    public NPCManager npcManager;// todo:记得在场景二加载完成时候赋值
+    public NPCManager npcManager { get; set; }// todo:记得在场景二加载完成时候赋值
     //持有player自动寻路组件
-    public PlayerAutoMove playerAutoMove;//todo:记得在场景二加载完成时候赋值
+    public PlayerAutoMove playerAutoMove { get; set; }//todo:记得在场景二加载完成时候赋值
+    //持有技能管理类
+    public SkillManager skillManager { get; set; }
+    //副本类型
+    public RaidType raidType = RaidType.None;
+    //将要完成的副本id，默认为0
+    public int raidIdToFinished = 0;
+    //用户账号信息，用来重新连接
+    public string Username { get; set; }
+    public string Password { get; set; }
+    //进入副本的玩家名字和性别，索引对应，0号为主机
+    [HideInInspector]
+    public List<string> playerNames;
+    [HideInInspector]
+    public List<bool> playerSexes;
     #endregion
 
 
@@ -35,17 +58,25 @@ public class GameControl : MonoBehaviour {
     private void Awake()
     {
         //单例
-        _instance = this;
-        //UI管理类
-        FindRefrence_UIManager();
+        if (_instance == null)
+        {
+            _instance = this;
+        }
+        else
+        {//避免重复创建gamecontrol
+            Destroy(gameObject);
+            return;
+        }
+        //UI管理类，由各自的脚本主动赋值
+        mUIManager = null;
         //本单例不随场景摧毁
         GameControl.DontDestroyOnLoad(this.gameObject);
         //服务器列表
-        mServerlist = new ServerList();
+        serverList = null;
         //角色可选列表初始化
         cList = new List<CharacterType>();
         cList.Add(CharacterType.Man);
-        cList.Add(CharacterType.Women);
+        cList.Add(CharacterType.Woman);
         //任务信息加载
         LoadTaskInfo();
         //装备道具信息初始化
@@ -53,16 +84,15 @@ public class GameControl : MonoBehaviour {
         //玩家相关信息初始化
         playerInfo = new PlayerInfo();
 
-        ///*这个步骤后面不能放在这里*///
-        FindRefrence_02NoviceVillageScene();
-      
-    }
+        //技能信息初始化
+        skillManager = new SkillManager();
+        //副本类型赋值
+        raidType = RaidType.None;
+        //将要完成的raidid赋值
+        raidIdToFinished = 0;
+   }
 
-    private void Update()
-    {
-        //玩家体力活力自动回复
-        playerInfo.UpdateEnergyAndPhysical();
-    }
+    
 
     #region 逻辑方法
     private void LoadTaskInfo()
@@ -86,38 +116,6 @@ public class GameControl : MonoBehaviour {
             t.idRaid = int.Parse(s[9]);
             t.taskProgress = TaskProgress.UnStart;
             tasks.Add(t);
-        }
-    }
-    public void FindRefrence_02NoviceVillageScene()
-    {
-        FindRefrence_UIManager();
-        FindRefrence_NPCManager();
-        FindRefrence_PlayerAutoMove();
-    }
-    private void FindRefrence_UIManager()
-    {
-        mUIManager = GameObject.Find("UI Root").GetComponent<UIManagerBase>();
-        if (mUIManager == null)
-        {
-            Debug.LogError("UI Root 上找不到UIManager");
-        }
-    }
-    private void FindRefrence_NPCManager()
-    {
-        npcManager= GameObject.Find("NPC").GetComponent<NPCManager>();
-        if (npcManager == null)
-        {
-            Debug.LogError("NPC 上找不到npcManager");
-        }
-    }
-    private void FindRefrence_PlayerAutoMove()
-    {
-        try
-        {
-            playerAutoMove = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerAutoMove>();
-        }catch (Exception e)
-        {
-            Debug.LogError("找不到playerAutoMove : "+e.Message);
         }
     }
     #endregion

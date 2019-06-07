@@ -6,7 +6,7 @@ public class UIManagerBase : MonoBehaviour {
     //持有本场景所有要使用的ui组件的引用
     private Dictionary<string, Transform> UIDic;
 
-    private void Awake()
+    public  virtual void Awake()
     {
         InitDic();
     }
@@ -34,7 +34,7 @@ public class UIManagerBase : MonoBehaviour {
     /// </summary>
     /// <param name="name">对象名字</param>
     /// <returns>对象的transform 组件</returns>
-    protected UIBehavior GetUI(string name)
+    public UIBehavior GetUI(string name)
     {
         Transform transform=null;
         if (!UIDic.TryGetValue(name, out transform))
@@ -54,6 +54,19 @@ public class UIManagerBase : MonoBehaviour {
     {
         yield return new WaitForSeconds(time);
         obj.HideUI();
+    }
+    /// <summary>
+    /// 将对象obj的所有子按钮都设置为状态state
+    /// </summary>
+    /// <param name="obj"></param>
+    /// <param name="state"></param>
+    public void SetChildBtnState(UIBehavior obj,bool state)
+    {
+        UIButton[] children = obj.transform.GetComponentsInChildren<UIButton>();
+        foreach(var c in children)
+        {
+            c.enabled = state;
+        }
     }
 
 }

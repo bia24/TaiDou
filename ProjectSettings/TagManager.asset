@@ -6,6 +6,10 @@ TagManager:
   tags:
   - NPC
   - NPC_RaidEntry
+  - Boundary
+  - Boss
+  - 01Start
+  - 02NoviceVillage
   layers:
   - Default
   - TransparentFX

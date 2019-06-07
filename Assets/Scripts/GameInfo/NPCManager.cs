@@ -15,6 +15,11 @@ public class NPCManager : MonoBehaviour {
         InitNpcDic();
     }
 
+    private void Start()
+    {
+        //向gamecontrol注册自己
+        GameControl.Instance.npcManager = this;
+    }
 
     #region 逻辑方法
     private void InitNpcDic()

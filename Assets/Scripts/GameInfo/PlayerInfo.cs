@@ -62,10 +62,12 @@ public class PlayerInfo {
         set
         {
             characterLevel = value;
+            CharacterPower =(characterLevel-1)* 10+100;
             if (OnLevelChange != null)
             {
                 OnLevelChange(value);
             }
+
         }
     }
     //战斗力
@@ -88,9 +90,14 @@ public class PlayerInfo {
         set
         {
             characterExp = value;
+            if (characterExp >= LevelUpNeedExp())
+            {
+                characterExp -= LevelUpNeedExp();
+                CharacterLevel++;
+            }
             if (OnExpChange != null)
             {
-                OnExpChange(value);
+                OnExpChange(characterExp);
             }
         }
     }
@@ -211,15 +218,15 @@ public class PlayerInfo {
     {
         Username = null;
         Passward = null;
-        CharacterName = "北门一条狗";
-        CharacterType = CharacterType.Women;
-        CharacterLevel = 24;
-        CharacterPower = 998;
-        CharacterExp = 531;
-        Diamond = 111;
-        Gold = 222;
-        Physical = 77;
-        Energy = 15;
+        CharacterName = null;
+        CharacterType = CharacterType.Woman;
+        CharacterLevel =1;
+        CharacterPower = 100;
+        CharacterExp = 0;
+        Diamond = 0;
+        Gold = 0;
+        Physical = 100;
+        Energy = 50;
         TimerEnergy = TIMERRECOVER;
         TimerPhysical = TIMERRECOVER;
     }
@@ -229,34 +236,7 @@ public class PlayerInfo {
         //TODO: 使用账号信息链接服务器获得背包信息状态
 
         knapsack = new List<KnapsackItem>();
-        //模拟初始化背包
-        for (int i = 0; i < 20; i++)
-        {
-            int id = UnityEngine.Random.Range(1001, 1020);
-            ArticleInfo ari = GameControl.Instance.articleList.Get(id);
-            if (ari.Type == ArticleType.Box || ari.Type == ArticleType.Drug)
-            {
-                bool isExist = false;
-                for (int j = 0; j < knapsack.Count; j++)
-                {
-                    if (knapsack[j].ItemInfo.ID == ari.ID)
-                    {
-                        knapsack[j].Count++;
-                        isExist = true;
-                        break;
-                    }
-                }
-                if (!isExist)
-                {
-                    knapsack.Add(new KnapsackItem(ari));
-                }
-            }
-            else
-            {
-                //装备
-                knapsack.Add(new KnapsackItem(ari));
-            }
-        }
+       
     }
     //身上穿戴装备初始化
     private void InitDressedEq()
@@ -264,17 +244,14 @@ public class PlayerInfo {
         //todo:连接数据库 获得玩家已有的装备
         //模拟：
         dressedEq = new Dictionary<ArticleType, KnapsackItem>();
-       for(int i = 1001; i < 1020; i++)
-        {
-            ArticleInfo ari = GameControl.Instance.articleList.Get(i);
-            if (ari.Type != ArticleType.Box && ari.Type != ArticleType.Drug)
-            {
-                if (!dressedEq.ContainsKey(ari.Type))
-                {
-                    dressedEq.Add(ari.Type, new KnapsackItem(ari));
-                }
-            }
-        }
+        dressedEq.Add(ArticleType.Helmet, new KnapsackItem(GameControl.Instance.articleList.Get(1)));
+        dressedEq.Add(ArticleType.Clothe, new KnapsackItem(GameControl.Instance.articleList.Get(2)));
+        dressedEq.Add(ArticleType.Weapon, new KnapsackItem(GameControl.Instance.articleList.Get(3)));
+        dressedEq.Add(ArticleType.Shoe, new KnapsackItem(GameControl.Instance.articleList.Get(4)));
+        dressedEq.Add(ArticleType.Necklace, new KnapsackItem(GameControl.Instance.articleList.Get(5)));
+        dressedEq.Add(ArticleType.Ring, new KnapsackItem(GameControl.Instance.articleList.Get(6)));
+        dressedEq.Add(ArticleType.Bracelet, new KnapsackItem(GameControl.Instance.articleList.Get(7)));
+        dressedEq.Add(ArticleType.Wing, new KnapsackItem(GameControl.Instance.articleList.Get(8)));
     }
     //玩家任务初始化
     private void InitPlayerTask()
@@ -343,26 +320,51 @@ public class PlayerInfo {
         playerTask[taskIndex].taskProgress = TaskProgress.Accepted;
 
         currentTaskIndex = taskIndex;//当前任务index赋值
-
+       
         //自动寻路
         int npcId = playerTask[taskIndex].idNpc;
         GameObject npc = GameControl.Instance.npcManager.GetNpcById(npcId);
         GameControl.Instance.playerAutoMove.OpenPlayerAutoMove(npc);
     }
-    public void FinishTask(int taskIndex)//todo:副本里调用
-    {
-    }   
     public void RewardTask(int taskIndex)
     {
         Task task = playerTask[taskIndex];
         task.taskProgress = TaskProgress.Complete;
         Gold += task.gold;
         Diamond += task.diamond;
-        playerTask.RemoveAt(taskIndex);
+        //playerTask.RemoveAt(taskIndex);
+        
     }
     public Task GetCurrentTask()
     {
-        return playerTask[currentTaskIndex];
+        if (currentTaskIndex == -1)
+        {
+            return null;
+        }
+        else
+        {
+            return playerTask[currentTaskIndex];
+        }
+    }
+    public void SetNullCurrentTask()
+    {
+        currentTaskIndex = -1;
+    }
+         
+
+    public void DisRegisterEvent()
+    {
+        OnNameChange = null;
+        OnTypeChange = null;
+        OnLevelChange = null;
+        OnPowerChange = null;
+        OnExpChange = null;
+        OnDiamondChange = null;
+        OnGoldChange = null;
+        OnPhysicalChange = null;
+        OnEnergyChange = null;
+        OnTimerPhysicalChange = null;
+        OnTimerEnergyChange = null;
     }
     #endregion
 }

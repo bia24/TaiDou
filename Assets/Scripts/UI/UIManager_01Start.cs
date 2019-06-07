@@ -3,12 +3,16 @@ using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
 using System;
+using TaidouCommon.Model;
+using UnityEngine.SceneManagement;
 
 
 public class UIManager_01Start : UIManagerBase {
 
     private void Start()
     {
+        //主动向manager登记自己
+        GameControl.Instance.mUIManager = this;
         #region Start场景事件绑定
         GetUI("Btn_User_u").RegisterOnClick(new EventDelegate(OnUsernameClick));
         GetUI("Btn_Server_u").RegisterOnClick(new EventDelegate(OnServerClick));
@@ -26,6 +30,8 @@ public class UIManager_01Start : UIManagerBase {
         GetUI("Btn_CharacterReturn_u").RegisterOnClick(new EventDelegate(OnCharacterNewReturnClick));
         RegisterAllCharacterItems();//注册所有角色的点击事件
         GetUI("Btn_CharacterConfirm_u").RegisterOnClick(new EventDelegate(OnCharacterConfirmClick));
+        //进入游戏按钮，场景切换
+        GetUI("Btn_CharacterEnter_u").RegisterOnClick(new EventDelegate(OnScene_StartToScene_Village));
         #endregion
 
         //完成绑定后，隐藏多余panel
@@ -34,6 +40,12 @@ public class UIManager_01Start : UIManagerBase {
         GetUI("Pan_Server_u").HideUI();
         GetUI("Pan_CharacterChoose_u").HideUI();
         GetUI("Pan_CharacterNew_u").HideUI();
+        GetUI("Pan_Message_u").HideUI();
+        GetUI("Loading_u").HideUI();
+
+
+        //变量初始化
+        isCharacterClicked = false;
     }
 
 
@@ -43,15 +55,25 @@ public class UIManager_01Start : UIManagerBase {
     /// </summary>
     private void OnEnterGameClick()
     {
-        //TODO: 1.连接服务器，验证账号，初始化账号角色信息
-        //2.进入游戏界面
-        UIBehavior current = GetUI("Pan_Start_u");
-        UIBehavior target = GetUI("Pan_CharacterChoose_u");
-        current.transform.DOScale(0, 0.1f).From(1).SetEase(Ease.Linear);
-        StartCoroutine(HideObjectDelay(current, 0.1f));
-        target.ShowUI();
-        target.transform.DOLocalMove(new Vector3(4, 16, 0), 0.2f).From(new Vector3(-1380, 16, 0)).SetEase(Ease.Linear);
-        StartCoroutine(SetAchorOffsetDelay(target.transform, GameObject.Find("UI Root").transform, 0.1f));
+        //进入游戏界面
+        if (IsSignIn)
+        {
+            if (GameControl.Instance.playerInfo.CharacterName == null)
+            {
+                ShowMessagePanel("请创建角色",1f);
+            }
+            UIBehavior current = GetUI("Pan_Start_u");
+            UIBehavior target = GetUI("Pan_CharacterChoose_u");
+            current.transform.DOScale(0, 0.1f).From(1).SetEase(Ease.Linear);
+            StartCoroutine(HideObjectDelay(current, 0.1f));
+            target.ShowUI();
+            target.transform.DOLocalMove(new Vector3(4, 16, 0), 0.2f).From(new Vector3(-1380, 16, 0)).SetEase(Ease.Linear);
+            StartCoroutine(SetAchorOffsetDelay(target.transform, GameObject.Find("UI Root").transform, 0.1f));
+        }
+        else
+        {
+            ShowMessagePanel("账号验证失败，请输入正确账号", 1f);
+        }
     }
     /// <summary>
     /// "用户名"按钮点击回调方法
@@ -79,17 +101,15 @@ public class UIManager_01Start : UIManagerBase {
     }
     /// <summary>
     ///"登录"按钮点击
-    /// </summary>
+    /// </summary> 
     private void OnSignInClick()
     {
-        //ToDo:账号验证相关
-
-        //面板切换
+        //账号验证相关
         string username = GetInputValue("Input_Username_Login_u");
-        ClearLogin();
-        ChangePanel("Pan_Login_u","Pan_Start_u");
-        GetUI("Lab_User_u").GetComponent<UILabel>().text = username;
+        string password = GetInputValue("Input_Passward_Login_u");
+        GetComponent<LoginHandler>().Login(username,password);//向服务器发出登录请求
     }
+   
     /// <summary>
     /// "取消"-登录界面
     /// </summary>
@@ -112,12 +132,27 @@ public class UIManager_01Start : UIManagerBase {
     private void OnSignUpConfirmClick()
     {
         //ToDo: 正确性验证
-
-        //面板切换
         string username = GetInputValue("Input_Username_SignUp_u");
-        ClearSignUp();
-        ChangePanel("Pan_SignUp_u", "Pan_Start_u");
-        GetUI("Lab_User_u").GetComponent<UILabel>().text = username;
+        string password = GetInputValue("Input_Passward_SignUp_u");
+        string passwordConfirm = GetInputValue("Input_PasswardConfirm_SignUp_u");
+        if (username.Length<=3)
+        {
+            ShowMessagePanel("非法用户名，长度要大于3", 1f);
+            return;
+        }
+        if (password.Length <= 3)
+        {
+            ShowMessagePanel("非法密码，长度要大于3", 1f);
+            return;
+        }
+        if (password != passwordConfirm)
+        {
+            ShowMessagePanel("密码两次输入不一致，请确认",1f);
+            return;
+        }
+        //向服务器发起注册请求 
+        GetComponent<RegisterHandler>().Register(username, password);
+     
     }
     
     //“已选择服务器” 点击
@@ -154,6 +189,11 @@ public class UIManager_01Start : UIManagerBase {
     //" 返回"按钮点击【角色创建面板】
     private void OnCharacterNewReturnClick()
     {
+        //重置点击变量
+        isCharacterClicked = false;
+        //先从数据库中更新一波player
+        GetComponent<RoleHandler>().GetRole();
+
         UIBehavior start = GetUI("Pan_CharacterNew_u");
         UIBehavior end = GetUI("Pan_CharacterChoose_u");
         start.GetComponent<UIWidget>().SetAnchor(start.gameObject, 0, 0, 0, 0);
@@ -162,55 +202,103 @@ public class UIManager_01Start : UIManagerBase {
         end.ShowUI();
         end.transform.DOLocalMove(new Vector3(4, 16, 0), 0.2f).From(new Vector3(-1380, 16, 0)).SetEase(Ease.Linear);
         StartCoroutine(SetAchorOffsetDelay(end.transform, GameObject.Find("UI Root").transform, 0.1f));
+
+        //输入框文字清空
+        GetUI("Input_NikiName_u").GetComponent<UIInput>().value = "";
+        //角色大小重置
+        ResetCharacterModel();
+       
     }
     //待选“角色”被点击
     private void OnCharacterClick(CharacterType type)
     {
+        //置角色选择变量为true
+        isCharacterClicked = true;
+
         GameControl.Instance.playerInfo.CharacterType = type;
         foreach(CharacterType t in GameControl.Instance.cList)
         {
             string name = "Character_" + t.ToString() + "_u";
             if (t == type)
             {
-                GetUI(name).transform.DOScale(250,0.3f);
+                GetUI(name).transform.DOScale(200f,0.3f);
             }
             else
             {
-                GetUI(name).transform.DOScale(200f, 0.3f);
+                GetUI(name).transform.DOScale(180f, 0.3f);
             }
         }        
     }
     public GameObject[] characters;
+    private bool isCharacterClicked = false;
     //角色“确认”按钮被点击
     private void OnCharacterConfirmClick()
     {
-        //1.ToDo:昵称验证
-        //2.Panel切换
-        OnCharacterNewReturnClick();
-        //3.角色信息更改显示
-        GameControl.Instance.playerInfo.CharacterLevel = 1;   //默认等级为1级
-        string nikName = GetUI("Input_NikiName_u").GetComponent<UIInput>().value;
-        GameControl.Instance.playerInfo.CharacterName = nikName == "" ? "bia" : nikName;//默认名字显示bia
-        GetUI("Lab_CharacterName_u").GetComponent<UILabel>().text = GameControl.Instance.playerInfo.CharacterName;
-        GetUI("Lab_Level_u").GetComponent<UILabel>().text = "LV." + GameControl.Instance.playerInfo.CharacterLevel.ToString();
-        //4.角色模型创建
-        Transform createPos = GetUI("CharacterCreatePos_u").transform;
-        if (createPos.childCount != 0)
+        if (isCharacterClicked == false)
         {
-            GameObject.Destroy(createPos.GetChild(0).gameObject);
+            ShowMessagePanel("请先选择一个角色",1f);
+            return;
         }
-        GameObject go= NGUITools.AddChild(createPos.gameObject, characters[(int)GameControl.Instance.playerInfo.CharacterType]);
-        go.layer = 8;
-        go.transform.localScale = new Vector3(200,200,200);
-        go.transform.Rotate(new Vector3(0,180,0), Space.Self);
-       //go.GetComponent<UIWidget>().SetAnchor(createPos.gameObject,)
+        //角色昵称验证
+        string nikName= GetUI("Input_NikiName_u").GetComponent<UIInput>().value;
+        bool isman = GameControl.Instance.playerInfo.CharacterType == CharacterType.Man ? true : false;
+        Role role = new Role() { user=null,name=nikName,isman=isman,
+            //下面都是默认创建角色的值
+            level =1,
+            power=100,
+            exp=0,
+            diamond=666,
+            gold=666,
+            physical=0,
+            energy=0
+        };
+        GetComponent<RoleHandler>().AddRole(role);
     }
 
+    //"进入游戏"被点击，切换新手村场景
+    //使用协程来完成，可以不用把判断放在update中了
+    private void OnScene_StartToScene_Village()
+    {
+        StartCoroutine(LoadingToScene_Village());
+    }
+    IEnumerator LoadingToScene_Village()
+    {
+        //ui切换
+        GetUI("Loading_u").ShowUI();
+        GetUI("Pan_CharacterChoose_u").HideUI();
+        UISlider slider = GetUI("Loading_Bar_bg_u").GetComponent<UISlider>();
+        slider.value = 0;
+        //异步加载场景
+        AsyncOperation asy = SceneManager.LoadSceneAsync(1);
+        asy.allowSceneActivation = false;
+        while (true)
+        {
+            yield return null;
+            slider.value = Mathf.Lerp(slider.value, asy.progress, Time.deltaTime);
+            if (Mathf.Abs(slider.value - 0.9f) <= 0.02f)
+            {
+                while (true)
+                {
+                    yield return null;
+                    slider.value = Mathf.Lerp(slider.value, 1f, Time.deltaTime);
+                    if (Mathf.Abs(slider.value - 1f) <= 0.02f)
+                    {
+                        slider.value = 1f;
+                        yield return new WaitForSeconds(1f);
+                        asy.allowSceneActivation = true;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        yield return null;
+    }
 
     #endregion
 
     #region 其他辅助方法
-    
+
     /// <summary>
     /// 改变当前panel，并使用相关动画
     /// </summary>
@@ -244,23 +332,41 @@ public class UIManager_01Start : UIManagerBase {
         GetUI("Input_PasswardConfirm_SignUp_u").GetComponent<UIInput>().value = "";
     }
     //初始化服务器列表
-    public UIAtlas atlas;
+    //public UIAtlas atlas;
     private void InitServerList()
     {
-      List<ServerItem> serverItems= GameControl.Instance.mServerlist.SList;
-       for(int i=0;i< serverItems.Count; i++)
+        List<Server> servers = GameControl.Instance.serverList;
+        if (servers == null)
         {
-            serverItems[i].ConnectCount = UnityEngine.Random.Range(0, 100); //模拟网络连接数TODO：改为服务器验证
-            if (serverItems[i].ConnectCount < 50)
+            isGetServerList = false;
+            GetUI("Lab_Server_u").GetComponent<UILabel>().text = "加载中...";
+            GetUI("Btn_Server_u").DisableUIButton();
+            for(int i = 0; i < SERVERCOUNT; i++)
             {
-                //free 状态修改
-                SetServerState(i, serverItems[i].Name, true);
+                string uiBtnName = "Btn_Server_" + ((i + 1) / 10).ToString() + ((i + 1) % 10).ToString() + "_u";
+                UIBehavior btn = GetUI(uiBtnName);
+                btn.DisableUIButton();
             }
-            else
+            GetUI("Btn_ServerSelected_u").DisableUIButton();
+        }
+        else
+        {
+            isGetServerList = true;
+            GetUI("Lab_Server_u").GetComponent<UILabel>().text = servers[0].name;
+            GetUI("Btn_Server_u").EnableUIButton();
+            for(int i = 0; i < servers.Count; i++)
             {
-                //busy 状态修改
-                SetServerState(i, serverItems[i].Name, false);
+                bool state = servers[i].count < 50;
+                SetServerState(i, servers[i].name,state);//循环设置状态
             }
+            UIBehavior btn0 = GetUI("Btn_Server_01_u");
+            UIBehavior lab0 = GetUI("Lab_Server_01_u");
+            GetUI("Lab_ServerSelected_u").GetComponent<UILabel>().text = lab0.GetComponent<UILabel>().text;
+            GetUI("Btn_ServerSelected_u").GetComponent<UIButton>().normalSprite = btn0.GetComponent<UIButton>().normalSprite;
+            GetUI("Btn_ServerSelected_u").GetComponent<UIButton>().hoverSprite = btn0.GetComponent<UIButton>().hoverSprite;
+            GetUI("Btn_ServerSelected_u").GetComponent<UIButton>().pressedSprite = btn0.GetComponent<UIButton>().pressedSprite;
+            GetUI("Btn_ServerSelected_u").GetComponent<UIButton>().disabledSprite = btn0.GetComponent<UIButton>().disabledSprite;
+            GetUI("Btn_ServerSelected_u").EnableUIButton();
         }
     }
     //服务器状态ui改变
@@ -270,6 +376,7 @@ public class UIManager_01Start : UIManagerBase {
         string uiLabName = "Lab_Server_" + ((index + 1) / 10).ToString() + ((index + 1) % 10).ToString() + "_u";
         UIBehavior btn = GetUI(uiBtnName);
         UIBehavior lab = GetUI(uiLabName);
+        btn.EnableUIButton();
         lab.GetComponent<UILabel>().text = name;
         if (isfree)
         {
@@ -287,11 +394,12 @@ public class UIManager_01Start : UIManagerBase {
         }
     }
 
+    private const int SERVERCOUNT = 10;
     ///服务器标签点击事件注册【封装了一个方法】
     private void RegisterAllServerItems()
     {
-        int count = GameControl.Instance.mServerlist.SList.Count;
-        for(int i = 0; i < count; i++)
+        int count = SERVERCOUNT;
+        for (int i = 0; i < count; i++)
         {
             string btnName= "Btn_Server_" + ((i + 1) / 10).ToString() + ((i + 1) % 10).ToString() + "_u"; 
             string labName= "Lab_Server_" + ((i + 1) / 10).ToString() + ((i + 1) % 10).ToString() + "_u";
@@ -331,7 +439,96 @@ public class UIManager_01Start : UIManagerBase {
             EventDelegate.Add(btn.onClick, () => { OnCharacterClick(t); });
         }
     }
-   
+    private bool isSignIn = false; //是否成功登录，影响”进入游戏“按钮
+    public bool IsSignIn { get { return isSignIn; } }
+    //登录成功进行的操作
+    public void SignInSuccess()
+    {
+        //界面切换
+        isSignIn = true;//已经验证成功
+        string username = GetInputValue("Input_Username_Login_u");
+        ClearLogin();
+        ChangePanel("Pan_Login_u", "Pan_Start_u");
+        GetUI("Lab_User_u").GetComponent<UILabel>().text = username;
+        ShowMessagePanel("登录成功", 1f);
+        //todo：加载玩家信息，从服务器获取角色信息
+        GetComponent<RoleHandler>().GetRole();
+    }
+    //注册成功的操作
+    public void RegisterSuccess()
+    {
+        //界面切换
+        isSignIn = true;//已经验证成功
+        string username = GetInputValue("Input_Username_SignUp_u");
+        ClearSignUp();
+        ChangePanel("Pan_SignUp_u", "Pan_Start_u");
+        GetUI("Lab_User_u").GetComponent<UILabel>().text = username;
+        ShowMessagePanel("登录成功",1f);
+        //todo：加载玩家信息
+        GetComponent<RoleHandler>().GetRole();
+    }
+    public void LoadingRole()
+    {
+        PlayerInfo player = GameControl.Instance.playerInfo;
+        //获取角色模型创建点
+        Transform createPos = GetUI("CharacterCreatePos_u").transform;
+        //该用户没有角色的情况
+        if (player.CharacterName == null)
+        {
+            GetUI("Lab_CharacterName_u").GetComponent<UILabel>().text = "";
+            GetUI("Lab_Level_u").GetComponent<UILabel>().text = "";
+            if (createPos.childCount != 0)
+            {
+                Destroy(createPos.GetChild(0).gameObject);
+            }
+            return;
+        }
+        //等级和角色名显示
+        GetUI("Lab_CharacterName_u").GetComponent<UILabel>().text = player.CharacterName;
+        GetUI("Lab_Level_u").GetComponent<UILabel>().text = "LV." + player.CharacterLevel;
+        //模型创建
+        if (createPos.childCount != 0)
+        {
+            Destroy(createPos.GetChild(0).gameObject);
+        }
+        GameObject go = NGUITools.AddChild(createPos.gameObject, characters[(int)GameControl.Instance.playerInfo.CharacterType]);
+        go.layer = 8;
+        go.transform.localScale = new Vector3(200, 200, 200);
+        go.transform.Rotate(new Vector3(0, 180, 0), Space.Self);
+    }
+
+    public void AddRoleSuccess()
+    { 
+        //面板切换
+        OnCharacterNewReturnClick();
+        //把模型重置
+        ResetCharacterModel();
+        //角色信息加载
+        LoadingRole();
+    }
+
+    private void ResetCharacterModel()
+    {
+        string man = "Character_Man_u";
+        string woman = "Character_Woman_u";
+        GetUI(man).transform.DOScale(180, 0.2f);
+        GetUI(woman).transform.DOScale(180, 0.2f);
+    }
+
+    //提示信息面板显示信息
+    public void ShowMessagePanel(string message,float time)
+    {
+        UIBehavior start = GetUI("Pan_Message_u");
+        start.GetComponent<UILabel>().text = message;
+        start.ShowUI();
+        StartCoroutine(HideObjectDelay(start, time));
+    }
+    private bool isGetServerList = false;
+    public bool IsGetServerList { get { return isGetServerList; } }
+    private void Update()
+    {
+        if (!isGetServerList) { InitServerList(); }
+    }
     #endregion
 
 }

@@ -1,0 +1,8 @@
+1001,普通攻击,icon_zhu,Man,Basic,Basic,0,30
+1002,旋转打击,icon_up,Man,Skill,One,5,30
+1003,灵魂超度,iocn_ho,Man,Skill,Two,8,40
+1004,瞬身斩,iocn_yi,Man,Skill,Three,10,50
+2001,普通攻击,icon_zhu,Woman,Basic,Basic,0,30
+2002,不动明王,icon_li,Woman,Skill,One,5,35
+2003,万佛朝宗,iocn_fo,Woman,Skill,Two,8,40
+2004,恩赐解脱,iocn_ho,Woman,Skill,Three,13,50
