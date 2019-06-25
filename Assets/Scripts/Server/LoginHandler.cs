@@ -28,6 +28,9 @@ public class LoginHandler : ClientHandlerBase
                 case ReturnCode.Success://登录成功
                     manager.SignInSuccess();
                     break;
+                case ReturnCode.PhoneSuccess://手机登录成功
+                    manager.PhoneSuccess();
+                    break;
                 case ReturnCode.Exception://服务器端参数获取失败
                     manager.ShowMessagePanel("数据传输异常", 1f);
                     Debug.Log(response.DebugMessage);
@@ -54,10 +57,17 @@ public class LoginHandler : ClientHandlerBase
     public void Login(string username,string password)
     {
         User user = new User() { username = username, password = password };
-        Dictionary<byte, object> para = ParamTool.ConstructParam<User>(ParamCode.Login, user);
+        Dictionary<byte, object> para = ParamTool.ConstructParam(ParamCode.Login, user);
         TaidouClient.Instance.SendOperationRequest(code,para);
         GameControl.Instance.Username = username;
         GameControl.Instance.Password = password;
+    }
+
+    public void Login(string phone)
+    {
+        User user = new User() { username = phone, password = "0" };
+        Dictionary<byte, object> para = ParamTool.ConstructParam(ParamCode.PhoneLogin, user);
+        TaidouClient.Instance.SendOperationRequest(code, para);
     }
 
 

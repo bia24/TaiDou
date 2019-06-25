@@ -32,6 +32,11 @@ public class UIManager_01Start : UIManagerBase {
         GetUI("Btn_CharacterConfirm_u").RegisterOnClick(new EventDelegate(OnCharacterConfirmClick));
         //进入游戏按钮，场景切换
         GetUI("Btn_CharacterEnter_u").RegisterOnClick(new EventDelegate(OnScene_StartToScene_Village));
+        //手机登录界面
+        GetUI("Btn_Phone_u").RegisterOnClick(new EventDelegate(OnSwitchPhoneLoginPanel));
+        GetUI("Btn_Cancle_Phone_Enter_u").RegisterOnClick(new EventDelegate(OnReturnLoginPanel));
+        GetUI("Btn_Send_u").RegisterOnClick(new EventDelegate(OnSendPhone));
+        GetUI("Btn_Phone_Enter_u").RegisterOnClick(new EventDelegate(OnPhoneLogin));
         #endregion
 
         //完成绑定后，隐藏多余panel
@@ -42,6 +47,7 @@ public class UIManager_01Start : UIManagerBase {
         GetUI("Pan_CharacterNew_u").HideUI();
         GetUI("Pan_Message_u").HideUI();
         GetUI("Loading_u").HideUI();
+        GetUI("Pan_Phone_u").HideUI();
 
 
         //变量初始化
@@ -107,6 +113,16 @@ public class UIManager_01Start : UIManagerBase {
         //账号验证相关
         string username = GetInputValue("Input_Username_Login_u");
         string password = GetInputValue("Input_Passward_Login_u");
+        if (username.Length <= 3)
+        {
+            ShowMessagePanel("非法用户名，长度要大于3", 1f);
+            return;
+        }
+        if (password.Length <= 3)
+        {
+            ShowMessagePanel("非法密码，长度要大于3", 1f);
+            return;
+        }
         GetComponent<LoginHandler>().Login(username,password);//向服务器发出登录请求
     }
    
@@ -118,6 +134,62 @@ public class UIManager_01Start : UIManagerBase {
         ClearLogin();
         ChangePanel("Pan_Login_u", "Pan_Start_u");
     }
+
+    //切换到手机登录界面
+    private void OnSwitchPhoneLoginPanel()
+    {
+        ClearLogin();
+        ChangePanel("Pan_Login_u", "Pan_Phone_u");
+    }
+    //手机界面回到普通登录界面
+    private void OnReturnLoginPanel()
+    {
+        GetUI("Input_Phone_u").GetComponent<UIInput>().value = "";
+        GetUI("Input_Code_u").GetComponent<UIInput>().value = "";
+        ChangePanel("Pan_Phone_u", "Pan_Login_u");
+        code = -1;
+        phone = "";
+    }
+
+    int code = -1;
+    bool isSendPhone = false;
+    string phone = "";
+    //"发送手机号码"按钮被点击，获取验证码请求 发送
+    private void OnSendPhone()
+    {
+        string phoneStr = GetUI("Input_Phone_u").GetComponent<UIInput>().value;
+        if (string.IsNullOrEmpty(phoneStr))
+        {
+            ShowMessagePanel("请填入手机号码", 1f);
+            return;
+        }
+        code = Sms.Send(phoneStr);
+        GetUI("Btn_Send_u").DisableUIButton();
+        isSendPhone = true;//开启计时器
+        ShowMessagePanel("验证码已发送", 1f);
+        phone = phoneStr;//后面验证手机号是否更改
+    }
+    //"手机登录"按钮被点击
+    private void OnPhoneLogin()
+    {
+        string inputCode= GetUI("Input_Code_u").GetComponent<UIInput>().value;
+        if (!code.ToString().Equals(inputCode))
+        {
+            ShowMessagePanel("验证码错误", 1f);
+            GetUI("Input_Code_u").GetComponent<UIInput>().value = "";
+            return;
+        }
+        if (!phone.Equals(GetUI("Input_Phone_u").GetComponent<UIInput>().value))
+        {
+            ShowMessagePanel("验证码错误",1f);
+            GetUI("Input_Code_u").GetComponent<UIInput>().value = "";
+            return;
+        }
+        //发送正确手机号进行登录
+        GetComponent<LoginHandler>().Login(phone);
+    }
+    
+
     /// <summary>
     /// "取消"-注册界面
     /// </summary>
@@ -467,6 +539,22 @@ public class UIManager_01Start : UIManagerBase {
         //todo：加载玩家信息
         GetComponent<RoleHandler>().GetRole();
     }
+    //手机号登录成功的回调
+    public void PhoneSuccess()
+    {
+        //界面切换
+        isSignIn = true;//已经验证成功
+        GetUI("Lab_User_u").GetComponent<UILabel>().text = phone;
+        GetUI("Input_Phone_u").GetComponent<UIInput>().value = "";
+        GetUI("Input_Code_u").GetComponent<UIInput>().value = "";
+        code = -1;
+        phone = "";
+        ChangePanel("Pan_Phone_u", "Pan_Start_u");
+        ShowMessagePanel("登录成功", 1f);
+        //todo：加载玩家信息，从服务器获取角色信息
+        GetComponent<RoleHandler>().GetRole();
+    }
+
     public void LoadingRole()
     {
         PlayerInfo player = GameControl.Instance.playerInfo;
@@ -525,9 +613,28 @@ public class UIManager_01Start : UIManagerBase {
     }
     private bool isGetServerList = false;
     public bool IsGetServerList { get { return isGetServerList; } }
+
+    float phoneTimer = 60f;
     private void Update()
     {
-        if (!isGetServerList) { InitServerList(); }
+        //获取服务器列表
+        if (!isGetServerList) InitServerList();
+        //验证码请求发送后60s倒计时
+        if (isSendPhone)
+        {
+            if (phoneTimer >= 0)
+            {
+                GetUI("Lab_Send_u").GetComponent<UILabel>().text = ((int)phoneTimer).ToString() + " s";
+                phoneTimer -= Time.deltaTime;
+            }
+            else
+            {
+                isSendPhone = false;
+                phoneTimer = 60f;
+                GetUI("Lab_Send_u").GetComponent<UILabel>().text = "发送验证码";
+                GetUI("Btn_Send_u").EnableUIButton();
+            }
+        }
     }
     #endregion
 

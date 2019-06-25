@@ -370,10 +370,10 @@ MonoBehaviour:
     y: 812
     width: 229
     height: 76
-    borderLeft: 0
-    borderRight: 0
-    borderTop: 0
-    borderBottom: 0
+    borderLeft: 15
+    borderRight: 15
+    borderTop: 9
+    borderBottom: 11
     paddingLeft: 0
     paddingRight: 0
     paddingTop: 0
